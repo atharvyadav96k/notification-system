@@ -31,8 +31,21 @@ jobs:
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
           zip function.zip bootstrap
 
-      - name: Update Lambda Code
+      - name: Deploy Lambda Function
         run: |
-          aws lambda update-function-code \
-            --function-name notification-publisher \
-            --zip-file fileb://functions/end-point/function.zip
+          FUNCTION_NAME=notification-publisher
+          ZIP_FILE=fileb://functions/end-point/function.zip
+
+          if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+            aws lambda update-function-code \
+              --function-name "$FUNCTION_NAME" \
+              --zip-file "$ZIP_FILE"
+          else
+            aws lambda create-function \
+              --function-name "$FUNCTION_NAME" \
+              --runtime provided.al2023 \
+              --handler bootstrap \
+              --architectures x86_64 \
+              --zip-file "$ZIP_FILE" \
+              --role "${{ secrets.LAMBDA_EXECUTION_ROLE_ARN }}"
+          fi
