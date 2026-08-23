@@ -3,9 +3,11 @@ package helper
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/atharvyadav96k/notification-system/workers/consumer/applayer"
@@ -55,10 +57,7 @@ func ConsumeNotification(queue string) {
 
 	ch, err := conn.Channel()
 	if err != nil {
-		log.Printf(
-			"Failed to create channel: %v",
-			err,
-		)
+		log.Printf("Failed to create channel: %v", err)
 		return
 	}
 	defer ch.Close()
@@ -68,10 +67,7 @@ func ConsumeNotification(queue string) {
 		false,
 	)
 	if err != nil {
-		log.Printf(
-			"Failed to set QoS: %v",
-			err,
-		)
+		log.Printf("Failed to set QoS: %v", err)
 		return
 	}
 
@@ -94,51 +90,37 @@ func ConsumeNotification(queue string) {
 		return
 	}
 
-	log.Printf(
-		"Worker started: %s",
-		queue,
-	)
+	log.Printf("Worker started: %s", queue)
 
-	for {
+	for msg := range messages {
+		go func(msg amqp.Delivery) {
 
-		batch := make(
-			[]amqp.Delivery,
-			0,
-			BatchSize,
-		)
-		for len(batch) < BatchSize {
+			err := processNotification(
+				context.Background(),
+				msg.Body,
+			)
 
-			msg, ok := <-messages
-
-			if !ok {
+			if err != nil {
 				log.Printf(
-					"RabbitMQ consumer closed",
+					"Failed to process notification: %v",
+					err,
 				)
 				return
 			}
 
-			batch = append(
-				batch,
-				msg,
-			)
+			if err := msg.Ack(false); err != nil {
+				log.Printf(
+					"Failed to ACK message: %v",
+					err,
+				)
+				return
+			}
 
-			log.Printf(
-				"Message received: %d/%d",
-				len(batch),
-				BatchSize,
-			)
-		}
-		processBatch(batch)
+		}(msg)
 	}
 }
 
 func processBatch(batch []amqp.Delivery) {
-
-	log.Printf(
-		"Processing batch of %d messages",
-		len(batch),
-	)
-
 	sort.SliceStable(
 		batch,
 		func(i, j int) bool {
@@ -160,6 +142,10 @@ func processBatch(batch []amqp.Delivery) {
 
 	var wg sync.WaitGroup
 
+	var successful int64
+	var failed int64
+	var failedToACK int64
+
 	for _, msg := range batch {
 
 		wg.Add(1)
@@ -173,26 +159,26 @@ func processBatch(batch []amqp.Delivery) {
 			)
 
 			if err != nil {
-				log.Printf(
-					"Failed to process: %v",
-					err,
-				)
+				atomic.AddInt64(&failed, 1)
 				return
 			}
 
 			if err := msg.Ack(false); err != nil {
-				log.Printf(
-					"Failed to ACK: %v",
-					err,
-				)
+				atomic.AddInt64(&failedToACK, 1)
 				return
 			}
 
-			log.Println("Notification processed successfully")
+			atomic.AddInt64(&successful, 1)
 
 		}(msg)
 	}
 	wg.Wait()
+	fmt.Printf(
+		"Successful: %d, Failed: %d, Failed to ACK: %d\n",
+		successful,
+		failed,
+		failedToACK,
+	)
 }
 
 func processNotification(
@@ -208,19 +194,9 @@ func processNotification(
 	); err != nil {
 		return err
 	}
-
-	log.Printf(
-		"Processing notification: type=%d receiver=%s",
-		notification.MessageType,
-		notification.ReceiverAddress,
-	)
 	select {
 
-	case <-time.After(2 * time.Second):
-		log.Printf(
-			"Notification sent to %s",
-			notification.ReceiverAddress,
-		)
+	case <-time.After(200 * time.Millisecond):
 
 	case <-ctx.Done():
 		return ctx.Err()
