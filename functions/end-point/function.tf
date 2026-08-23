@@ -18,8 +18,8 @@ variable "lambda_role_arn" {
   type = string
 }
 
-variable "SQL" {
-    type = string
+variable "SQS_NAME" {
+  type = string
 }
 
 provider "aws" {
@@ -27,7 +27,7 @@ provider "aws" {
 }
 
 data "aws_sqs_queue" "notification_queue" {
-  name =  var.SQL
+  name = var.SQS_NAME
 }
 
 resource "aws_s3_object" "function_zip" {

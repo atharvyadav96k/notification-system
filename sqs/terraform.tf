@@ -1,9 +1,21 @@
+terraform {
+  backend "s3" {}
+}
+
+variable "region" {
+  type = string
+}
+
 variable "SQS_NAME" {
-    type = string
+  type = string
+}
+
+provider "aws" {
+  region = var.region
 }
 
 resource "aws_sqs_queue" "notification_dlq" {
-  name                      = var.SQS_NAME
+  name                      = "${var.SQS_NAME}-dlq"
   message_retention_seconds = 1209600
 }
 
@@ -22,9 +34,9 @@ resource "aws_sqs_queue" "notification_queue" {
 }
 
 output "sqs_queue_url" {
-  value       = aws_sqs_queue.notification_queue.id
+  value = aws_sqs_queue.notification_queue.id
 }
 
 output "sqs_queue_arn" {
-  value       = aws_sqs_queue.notification_queue.arn
+  value = aws_sqs_queue.notification_queue.arn
 }
