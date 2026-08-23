@@ -65,12 +65,20 @@ resource "aws_s3_object" "function_zip" {
   etag   = filemd5("${path.module}/function.zip")
 }
 
+resource "aws_lambda_permission" "function_url_public_access" {
+  statement_id           = "AllowPublicFunctionUrlInvoke"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.notification_publisher.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
 resource "aws_lambda_function_url" "publisher_url" {
   function_name      = aws_lambda_function.notification_publisher.function_name
   authorization_type = "NONE"
 
   cors {
-    allow_credentials = true
+    allow_credentials = false
     allow_origins     = ["*"]
     allow_methods     = ["POST", "GET"]
     allow_headers     = ["*"]
