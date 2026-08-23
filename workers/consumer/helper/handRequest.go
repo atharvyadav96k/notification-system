@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -24,9 +25,17 @@ const (
 func init() {
 	var err error
 
-	conn, err = amqp.Dial(
-		"amqp://guest:guest@rabbitmq:5672/",
-	)
+	rabbitURL := os.Getenv("RABBITMQ_URL")
+
+	log.Printf("RABBITMQ_URL = [%s]", rabbitURL)
+
+	if rabbitURL == "" {
+		log.Fatal("RABBITMQ_URL is not set")
+	}
+
+	log.Printf("Connecting to RabbitMQ: %s", rabbitURL)
+
+	conn, err = amqp.Dial(rabbitURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,7 +44,6 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer ch.Close()
 
 	_, err = ch.QueueDeclare(
 		QueueName,

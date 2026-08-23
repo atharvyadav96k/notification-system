@@ -1,0 +1,34 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+  namespace: notification-system
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: rabbitmq-conn
+      key: RABBITMQ_URL
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notification-worker-scaler
+  namespace: notification-system
+spec:
+  scaleTargetRef:
+    name: notification-worker
+
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  cooldownPeriod: 30
+  pollingInterval: 5
+
+  triggers:
+    - type: rabbitmq
+      metadata:
+        queueName: notification
+        mode: QueueLength
+        value: "50"
+      authenticationRef:
+        name: rabbitmq-trigger-auth
