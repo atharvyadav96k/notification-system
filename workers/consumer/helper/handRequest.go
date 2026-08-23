@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/atharvyadav96k/notification-system/workers/consumer/applayer"
@@ -11,39 +13,68 @@ import (
 )
 
 var conn *amqp.Connection
-var ch *amqp.Channel
+
+const (
+	QueueName = "notifications"
+	BatchSize = 10
+)
 
 func init() {
 	var err error
-	conn, err = amqp.Dial("amqp://guest:guest@localhost:5672/")
+
+	conn, err = amqp.Dial(
+		"amqp://guest:guest@localhost:5672/",
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ch, err = conn.Channel()
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer ch.Close()
+
+	_, err = ch.QueueDeclare(
+		QueueName,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	queues := []string{"HIGH", "MEDIUM", "LOW"}
-
-	for _, queue := range queues {
-		_, err := ch.QueueDeclare(
-			queue,
-			true,
-			false,
-			false,
-			false,
-			nil,
-		)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	log.Printf("RabbitMQ queue ready: %s", QueueName)
 }
 
 func ConsumeNotification(queue string) {
+
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Printf(
+			"Failed to create channel: %v",
+			err,
+		)
+		return
+	}
+	defer ch.Close()
+	err = ch.Qos(
+		BatchSize,
+		0,
+		false,
+	)
+	if err != nil {
+		log.Printf(
+			"Failed to set QoS: %v",
+			err,
+		)
+		return
+	}
+
 	messages, err := ch.Consume(
 		queue,
 		"",
@@ -56,62 +87,140 @@ func ConsumeNotification(queue string) {
 
 	if err != nil {
 		log.Printf(
-			"Failed to consume notification %s: %v",
+			"Failed to consume %s: %v",
 			queue,
 			err,
 		)
 		return
 	}
 
-	log.Printf("Worker started for queue: %s", queue)
+	log.Printf(
+		"Worker started: %s",
+		queue,
+	)
 
-	for msg := range messages {
+	for {
 
-		log.Printf(
-			"[%s] Received: %s",
-			queue,
-			string(msg.Body),
+		batch := make(
+			[]amqp.Delivery,
+			0,
+			BatchSize,
 		)
+		for len(batch) < BatchSize {
 
-		err := processNotification(
-			context.Background(),
-			msg.Body,
-		)
+			msg, ok := <-messages
 
-		if err != nil {
-			log.Printf(
-				"[%s] Failed to process: %v",
-				queue,
-				err,
+			if !ok {
+				log.Printf(
+					"RabbitMQ consumer closed",
+				)
+				return
+			}
+
+			batch = append(
+				batch,
+				msg,
 			)
-			continue
-		}
 
-		if err := msg.Ack(false); err != nil {
 			log.Printf(
-				"[%s] Failed to ACK: %v",
-				queue,
-				err,
+				"Message received: %d/%d",
+				len(batch),
+				BatchSize,
 			)
-			continue
 		}
-
-		log.Printf(
-			"[%s] Notification processed successfully",
-			queue,
-		)
+		processBatch(batch)
 	}
 }
 
-func processNotification(ctx context.Context, msg []byte) error {
+func processBatch(batch []amqp.Delivery) {
+
+	log.Printf(
+		"Processing batch of %d messages",
+		len(batch),
+	)
+
+	sort.SliceStable(
+		batch,
+		func(i, j int) bool {
+
+			var messageI applayer.Message
+			var messageJ applayer.Message
+
+			if err := json.Unmarshal(batch[i].Body, &messageI); err != nil {
+				return false
+			}
+
+			if err := json.Unmarshal(batch[j].Body, &messageJ); err != nil {
+				return false
+			}
+
+			return messageI.MessageType < messageJ.MessageType
+		},
+	)
+
+	var wg sync.WaitGroup
+
+	for _, msg := range batch {
+
+		wg.Add(1)
+
+		go func(msg amqp.Delivery) {
+			defer wg.Done()
+
+			err := processNotification(
+				context.Background(),
+				msg.Body,
+			)
+
+			if err != nil {
+				log.Printf(
+					"Failed to process: %v",
+					err,
+				)
+				return
+			}
+
+			if err := msg.Ack(false); err != nil {
+				log.Printf(
+					"Failed to ACK: %v",
+					err,
+				)
+				return
+			}
+
+			log.Println("Notification processed successfully")
+
+		}(msg)
+	}
+	wg.Wait()
+}
+
+func processNotification(
+	ctx context.Context,
+	msg []byte,
+) error {
+
 	var notification applayer.Message
 
-	if err := json.Unmarshal(msg, &notification); err != nil {
+	if err := json.Unmarshal(
+		msg,
+		&notification,
+	); err != nil {
 		return err
 	}
 
+	log.Printf(
+		"Processing notification: type=%d receiver=%s",
+		notification.MessageType,
+		notification.ReceiverAddress,
+	)
 	select {
-	case <-time.After(0 * time.Millisecond):
+
+	case <-time.After(2 * time.Second):
+		log.Printf(
+			"Notification sent to %s",
+			notification.ReceiverAddress,
+		)
 
 	case <-ctx.Done():
 		return ctx.Err()

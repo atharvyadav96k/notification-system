@@ -3,9 +3,8 @@ package main
 import "github.com/atharvyadav96k/notification-system/workers/consumer/helper"
 
 func main() {
-	go helper.ConsumeNotification("HIGH")
-	go helper.ConsumeNotification("MEDIUM")
-	go helper.ConsumeNotification("LOW")
-
+	for i := 0; i < 10; i++ {
+		go helper.ConsumeNotification("notification")
+	}
 	select {}
 }
