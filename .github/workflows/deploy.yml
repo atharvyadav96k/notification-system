@@ -47,5 +47,5 @@ jobs:
               --handler bootstrap \
               --architectures x86_64 \
               --zip-file "$ZIP_FILE" \
-              --role "${{ secrets.LAMBDA_EXECUTION_ROLE_ARN }}"
+              --role "${{ secrets.LAMBDA_ROLE_ARN }}"
           fi
