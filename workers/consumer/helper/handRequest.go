@@ -17,7 +17,7 @@ import (
 var conn *amqp.Connection
 
 const (
-	QueueName = "notifications"
+	QueueName = "notification"
 	BatchSize = 10
 )
 
@@ -25,7 +25,7 @@ func init() {
 	var err error
 
 	conn, err = amqp.Dial(
-		"amqp://guest:guest@localhost:5672/",
+		"amqp://guest:guest@rabbitmq:5672/",
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -61,6 +61,7 @@ func ConsumeNotification(queue string) {
 		return
 	}
 	defer ch.Close()
+
 	err = ch.Qos(
 		BatchSize,
 		0,
@@ -92,31 +93,31 @@ func ConsumeNotification(queue string) {
 
 	log.Printf("Worker started: %s", queue)
 
-	for msg := range messages {
-		go func(msg amqp.Delivery) {
+	for {
 
-			err := processNotification(
-				context.Background(),
-				msg.Body,
+		batch := make(
+			[]amqp.Delivery,
+			0,
+			BatchSize,
+		)
+		for len(batch) < BatchSize {
+
+			msg, ok := <-messages
+
+			if !ok {
+				log.Printf("RabbitMQ consumer closed")
+				return
+			}
+
+			batch = append(batch, msg)
+
+			log.Printf(
+				"Received message %d/%d",
+				len(batch),
+				BatchSize,
 			)
-
-			if err != nil {
-				log.Printf(
-					"Failed to process notification: %v",
-					err,
-				)
-				return
-			}
-
-			if err := msg.Ack(false); err != nil {
-				log.Printf(
-					"Failed to ACK message: %v",
-					err,
-				)
-				return
-			}
-
-		}(msg)
+		}
+		processBatch(batch)
 	}
 }
 
