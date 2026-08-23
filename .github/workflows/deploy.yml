@@ -6,7 +6,28 @@ on:
       - main
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      sqs: ${{ steps.filter.outputs.sqs }}
+      function: ${{ steps.filter.outputs.function }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Detect Changed Paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            sqs:
+              - 'sqs/**'
+            function:
+              - 'functions/end-point/**'
+
   deploy:
+    needs: changes
+    if: needs.changes.outputs.sqs == 'true' || needs.changes.outputs.function == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -14,6 +35,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Go
+        if: needs.changes.outputs.function == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
@@ -29,6 +51,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: SQS Terraform Init
+        if: needs.changes.outputs.sqs == 'true'
         working-directory: sqs
         run: |
           terraform init \
@@ -38,6 +61,7 @@ jobs:
             -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
 
       - name: SQS Terraform Apply
+        if: needs.changes.outputs.sqs == 'true'
         working-directory: sqs
         env:
           TF_VAR_region: ${{ secrets.AWS_REGION }}
@@ -45,12 +69,14 @@ jobs:
         run: terraform apply -auto-approve
 
       - name: Build Go Binary
+        if: needs.changes.outputs.function == 'true'
         run: |
           cd functions/end-point
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
           zip function.zip bootstrap
 
       - name: Terraform Init
+        if: needs.changes.outputs.function == 'true'
         working-directory: functions/end-point
         run: |
           terraform init \
@@ -60,6 +86,7 @@ jobs:
             -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
 
       - name: Terraform Apply
+        if: needs.changes.outputs.function == 'true'
         working-directory: functions/end-point
         env:
           TF_VAR_region: ${{ secrets.AWS_REGION }}
