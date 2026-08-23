@@ -63,7 +63,6 @@ func putMessageInTheQueue(notification applayer.Message) error {
 }
 
 func publishMessage(PRIORITY string, message []byte) error {
-	fmt.Println(PRIORITY)
 	return ch.Publish(
 		"",
 		PRIORITY,
