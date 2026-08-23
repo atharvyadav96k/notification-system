@@ -4,9 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand"
+	"sync"
+	"time"
 
 	"github.com/atharvyadav96k/notification-system/function/end-point/helpers"
 	"github.com/aws/aws-lambda-go/lambda"
+)
+
+const (
+	totalRequests = 1_000_000
+	duration      = time.Minute
 )
 
 var notifications = []string{
@@ -33,13 +40,25 @@ func main() {
 	if aws {
 		lambda.Start(helpers.SendNotification)
 	} else {
-		for i := 0; i < 1000000; i++ {
+		interval := duration / time.Duration(totalRequests)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		var wg sync.WaitGroup
+
+		for i := 0; i < totalRequests; i++ {
+			<-ticker.C
 
 			notification := notifications[rand.Intn(len(notifications))]
-
 			event := json.RawMessage(notification)
 
-			helpers.SendNotification(context.Background(), event)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				helpers.SendNotification(context.Background(), event)
+			}()
 		}
+
+		wg.Wait()
 	}
 }
