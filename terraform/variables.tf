@@ -34,6 +34,12 @@ variable "rabbitmq_url" {
   sensitive   = true
 }
 
+variable "keda_version" {
+  description = "KEDA release to install (https://github.com/kedacore/keda/releases) -- Terraform installs KEDA itself so a fresh cluster works with a single apply"
+  type        = string
+  default     = "2.16.0"
+}
+
 variable "worker_replicas" {
   description = "Baseline replica count for the worker deployment (KEDA scales it above this under load)"
   type        = number

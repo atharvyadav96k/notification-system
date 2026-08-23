@@ -1,5 +1,24 @@
-resource "kubernetes_manifest" "rabbitmq_trigger_auth" {
-  manifest = {
+# KEDA isn't a managed Terraform resource upstream, so install its operator
+# and CRDs directly. `kubectl apply` is idempotent, and re-running it on
+# every apply means a wiped/fresh cluster self-heals on the next apply
+# instead of requiring a manual install step first.
+resource "null_resource" "keda_install" {
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = "kubectl apply --server-side --force-conflicts -f https://github.com/kedacore/keda/releases/download/v${var.keda_version}/keda-${var.keda_version}-core.yaml"
+  }
+}
+
+# TriggerAuthentication / ScaledObject are KEDA CRDs. The hashicorp/kubernetes
+# `kubernetes_manifest` resource needs the CRD's schema already registered in
+# the cluster at *plan* time, which breaks on a fresh cluster where KEDA is
+# installed in this same apply. `kubectl_manifest` applies raw YAML generically
+# without that requirement, so it works on a brand-new cluster in one apply.
+resource "kubectl_manifest" "rabbitmq_trigger_auth" {
+  yaml_body = yamlencode({
     apiVersion = "keda.sh/v1alpha1"
     kind       = "TriggerAuthentication"
     metadata = {
@@ -15,11 +34,13 @@ resource "kubernetes_manifest" "rabbitmq_trigger_auth" {
         }
       ]
     }
-  }
+  })
+
+  depends_on = [null_resource.keda_install]
 }
 
-resource "kubernetes_manifest" "worker_scaled_object" {
-  manifest = {
+resource "kubectl_manifest" "worker_scaled_object" {
+  yaml_body = yamlencode({
     apiVersion = "keda.sh/v1alpha1"
     kind       = "ScaledObject"
     metadata = {
@@ -50,7 +71,7 @@ resource "kubernetes_manifest" "worker_scaled_object" {
         }
       ]
     }
-  }
+  })
 
-  depends_on = [kubernetes_manifest.rabbitmq_trigger_auth]
+  depends_on = [null_resource.keda_install, kubectl_manifest.rabbitmq_trigger_auth]
 }
