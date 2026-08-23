@@ -25,9 +25,37 @@ variable "SQS_NAME" {
 provider "aws" {
   region = var.region
 }
-
 data "aws_sqs_queue" "notification_queue" {
   name = var.SQS_NAME
+}
+
+locals {
+  lambda_role_name = element(split("/", var.lambda_role_arn), length(split("/", var.lambda_role_arn)) - 1)
+}
+
+resource "aws_iam_policy" "lambda_sqs_send_policy" {
+  name        = "${var.function-name}-sqs-send-policy"
+  description = "Allows Lambda to send messages to SQS queue ${var.SQS_NAME}"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl"
+        ]
+        Resource = data.aws_sqs_queue.notification_queue.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_sqs_send_policy" {
+  role       = local.lambda_role_name
+  policy_arn = aws_iam_policy.lambda_sqs_send_policy.arn
 }
 
 resource "aws_s3_object" "function_zip" {
@@ -51,5 +79,8 @@ resource "aws_lambda_function" "notification_publisher" {
       SQS_QUEUE_URL = data.aws_sqs_queue.notification_queue.url
     }
   }
-  depends_on = [aws_s3_object.function_zip]
+  depends_on = [
+    aws_s3_object.function_zip,
+    aws_iam_role_policy_attachment.attach_sqs_send_policy
+  ]
 }
