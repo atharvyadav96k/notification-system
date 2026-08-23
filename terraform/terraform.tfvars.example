@@ -1,4 +1,0 @@
-rabbitmq_url = "amqp://guest:guest@rabbitmq.notification-system.svc.cluster.local:5672/"
-
-# kubeconfig_path = "~/.kube/config"
-# kube_context    = "kind-kind"
