@@ -169,6 +169,9 @@ func processBatch(batch []amqp.Delivery) {
 
 			if err != nil {
 				atomic.AddInt64(&failed, 1)
+				if nackErr := msg.Nack(false, true); nackErr != nil {
+					atomic.AddInt64(&failedToACK, 1)
+				}
 				return
 			}
 
