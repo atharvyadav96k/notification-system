@@ -1,4 +1,6 @@
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/terraform.tfvars
+functions/end-point/.terraform/
+functions/end-point/*.tfstate
+functions/end-point/*.tfstate.*
+functions/end-point/terraform.tfvars
+functions/end-point/bootstrap
+functions/end-point/function.zip
