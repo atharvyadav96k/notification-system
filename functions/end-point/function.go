@@ -35,7 +35,7 @@ var notifications = []string{
 }
 
 func main() {
-	aws := false
+	aws := true
 
 	if aws {
 		lambda.Start(helpers.SendNotification)
