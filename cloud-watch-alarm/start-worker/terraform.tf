@@ -27,7 +27,7 @@ resource "aws_lambda_permission" "allow_cloudwatch_alarm" {
   statement_id  = "AllowCloudWatchAlarmInvoke"
   action        = "lambda:InvokeFunction"
   function_name = data.aws_lambda_function.sqs_trigger.function_name
-  principal     = "lambda.alarms.cloudwatch.amazonaws.com"
+  principal     = "alarms.cloudwatch.amazonaws.com"
   source_arn    = aws_cloudwatch_metric_alarm.sqs_has_messages.arn
 }
 
