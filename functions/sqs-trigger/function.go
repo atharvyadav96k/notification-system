@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	lambda.Start(helpers.Trigger())
+	lambda.Start(helpers.Trigger)
 }
