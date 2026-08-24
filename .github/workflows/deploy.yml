@@ -98,7 +98,6 @@ jobs:
           TF_VAR_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
           TF_VAR_lambda_role_arn: ${{ secrets.LAMBDA_ROLE_ARN }}
           TF_VAR_function-name: sqs-trigger
-          TF_VAR_SQS_NAME: ${{ vars.QUEUE_NAME }}
         run: terraform apply -auto-approve
 
       - name: End point

@@ -19,6 +19,7 @@ variable "function_name" {
   default = "sqs-trigger"
 }
 
+
 data "aws_lambda_function" "sqs_trigger" {
   function_name = var.function_name
 }
