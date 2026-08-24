@@ -11,6 +11,7 @@ jobs:
     outputs:
       sqs: ${{ steps.filter.outputs.sqs }}
       function: ${{ steps.filter.outputs.function }}
+      sqs-trigger: ${{ steps.filter.outputs.sqs-trigger }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -24,10 +25,12 @@ jobs:
               - 'sqs/**'
             function:
               - 'functions/end-point/**'
+            sqs-trigger:
+              - 'functions/sqs-trigger/**'
 
   deploy:
     needs: changes
-    if: needs.changes.outputs.sqs == 'true' || needs.changes.outputs.function == 'true'
+    if: needs.changes.outputs.sqs == 'true' || needs.changes.outputs.function == 'true' || needs.changes.outputs.sqs-trigger == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Go
-        if: needs.changes.outputs.function == 'true'
+        if: needs.changes.outputs.function == 'true' || needs.changes.outputs.sqs-trigger == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
@@ -68,7 +71,33 @@ jobs:
           TF_VAR_SQS_NAME: ${{ vars.QUEUE_NAME }}
         run: terraform apply -auto-approve
 
-      - name: Build Go Binary
+      - name: SQS trigger
+        if: needs.changes.outputs.sqs-trigger == 'true'
+        run: |
+          cd functions/sqs-trigger
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
+          zip function.zip bootstrap
+
+      - name: Terraform Init
+        if: needs.changes.outputs.sqs-trigger == 'true'
+        working-directory: functions/sqs-trigger
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=state/sqs-trigger/terraform.tfstate" \
+            -backend-config="region=${{ secrets.AWS_REGION }}" \
+
+      - name: Terraform Apply
+        if: needs.changes.outputs.sqs-trigger == 'true'
+        working-directory: functions/sqs-trigger
+        env:
+          TF_VAR_region: ${{ secrets.AWS_REGION }}
+          TF_VAR_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_lambda_role_arn: ${{ secrets.LAMBDA_ROLE_ARN }}
+          TF_VAR_function-name: sqs-trigger
+        run: terraform apply -auto-approve
+
+      - name: End point
         if: needs.changes.outputs.function == 'true'
         run: |
           cd functions/end-point
@@ -83,7 +112,6 @@ jobs:
             -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
             -backend-config="key=state/notification-publisher/terraform.tfstate" \
             -backend-config="region=${{ secrets.AWS_REGION }}" \
-            -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
 
       - name: Terraform Apply
         if: needs.changes.outputs.function == 'true'
