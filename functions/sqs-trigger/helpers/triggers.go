@@ -2,7 +2,7 @@ package helpers
 
 import "fmt"
 
-func Trigger() error {
-	fmt.Println("Hello Mother Father")
-	return nil
+func Trigger() string {
+	fmt.Println("Hello World")
+	return "Hello World"
 }
