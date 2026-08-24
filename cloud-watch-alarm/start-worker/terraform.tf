@@ -44,7 +44,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_has_messages" {
   }
 
   statistic           = "Maximum"
-  period              = 60
+  period              = 30
 
   comparison_operator = "GreaterThanThreshold"
   threshold           = 0
