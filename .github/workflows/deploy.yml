@@ -135,7 +135,8 @@ jobs:
         working-directory: workers/consumer
         run: |
           terraform init \
-            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=state/worker/terraform.tfstate" \   
             -backend-config="region=${{ secrets.AWS_REGION }}"   
             
       - name: Creating Worker Infra
@@ -153,8 +154,7 @@ jobs:
             -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
             -backend-config="key=state/sqs-alarm/terraform.tfstate" \
             -backend-config="region=${{ secrets.AWS_REGION }}" \
-            -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
-
+ 
       - name: Creating SQS Alarm
         if: needs.changes.outputs.sqs-alarm == 'true'
         working-directory: cloud-watch-alarm/start-worker
