@@ -13,6 +13,7 @@ jobs:
       function: ${{ steps.filter.outputs.function }}
       sqs-trigger: ${{ steps.filter.outputs.sqs-trigger }}
       sqs-alarm: ${{ steps.filter.outputs.sqs-alarm }}
+      worker: ${{steps.filter.outputs.worker }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -30,6 +31,8 @@ jobs:
               - 'functions/sqs-trigger/**'
             sqs-alarm:
               - 'cloud-watch-alarm/start-worker/**'
+            worker:
+              - 'workers/consumer/**'
 
   deploy:
     needs: changes
@@ -100,14 +103,14 @@ jobs:
           TF_VAR_function-name: sqs-trigger
         run: terraform apply -auto-approve
 
-      - name: End point
+      - name: Setup go for the end point
         if: needs.changes.outputs.function == 'true'
         run: |
           cd functions/end-point
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap .
           zip function.zip bootstrap
 
-      - name: End point Terraform Init
+      - name: Endpoint Function
         if: needs.changes.outputs.function == 'true'
         working-directory: functions/end-point
         run: |
@@ -116,7 +119,7 @@ jobs:
             -backend-config="key=state/notification-publisher/terraform.tfstate" \
             -backend-config="region=${{ secrets.AWS_REGION }}" \
 
-      - name: End point Terraform Apply
+      - name: Creating Endpoint function
         if: needs.changes.outputs.function == 'true'
         working-directory: functions/end-point
         env:
@@ -127,7 +130,22 @@ jobs:
           TF_VAR_SQS_NAME: ${{ vars.QUEUE_NAME }}
         run: terraform apply -auto-approve
 
-      - name: Infra Alarm Terraform Init
+      - name: Worker 
+        if: needs.changes.outputs.worker == 'true'
+        working-directory: workers/consumer
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+            -backend-config="region=${{ secrets.AWS_REGION }}"   
+            
+      - name: Creating Worker Infra
+        if: needs.changes.outputs.worker == 'true'
+        working-directory: cloud-watch-alarm/start-worker
+        env:
+          TF_VAR_region: ${{ secrets.AWS_REGION }}
+        run: terraform apply -auto-approve
+
+      - name: SQS Alarm
         if: needs.changes.outputs.sqs-alarm == 'true'
         working-directory: cloud-watch-alarm/start-worker
         run: |
@@ -137,7 +155,7 @@ jobs:
             -backend-config="region=${{ secrets.AWS_REGION }}" \
             -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
 
-      - name: Infra Alarm Terraform Apply
+      - name: Creating SQS Alarm
         if: needs.changes.outputs.sqs-alarm == 'true'
         working-directory: cloud-watch-alarm/start-worker
         env:
