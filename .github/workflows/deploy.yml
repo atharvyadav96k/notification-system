@@ -36,7 +36,7 @@ jobs:
 
   deploy:
     needs: changes
-    if: needs.changes.outputs.sqs == 'true' || needs.changes.outputs.function == 'true' || needs.changes.outputs.sqs-trigger == 'true' || needs.changes.outputs.sqs-alarm == 'true'
+    if: needs.changes.outputs.sqs == 'true' || needs.changes.outputs.function == 'true' || needs.changes.outputs.sqs-trigger == 'true' || needs.changes.outputs.sqs-alarm == 'true' || needs.changes.outputs.worker
     runs-on: ubuntu-latest
 
     steps:
