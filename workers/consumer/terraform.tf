@@ -102,7 +102,7 @@ resource "aws_instance" "worker"{
     go mod tidy
 
     echo "run the worker"
-    SQS_QUEUE_URL="${data.aws_sqs_queue.notification_queue.url}" nohup go run worker.go > /home/ec2-user/worker.log 2>&1 &
+    AWS_REGION="${var.region}" SQS_QUEUE_URL="${data.aws_sqs_queue.notification_queue.url}" nohup go run worker.go > /home/ec2-user/worker.log 2>&1 &
     EOF
     tags = {
         Name = "Worker"
