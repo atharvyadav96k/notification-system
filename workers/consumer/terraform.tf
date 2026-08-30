@@ -102,8 +102,32 @@ resource "aws_instance" "worker"{
     echo "install dependencies"
     go mod tidy
 
-    echo "run the worker"
-    AWS_REGION="${var.region}" SQS_QUEUE_URL="${data.aws_sqs_queue.notification_queue.url}" nohup go run worker.go > /home/ec2-user/worker.log 2>&1 &
+    echo "create worker service"
+    cat <<-'UNIT' | sudo tee /etc/systemd/system/worker.service
+    [Unit]
+    Description=Notification SQS worker
+    After=network.target
+
+    [Service]
+    Type=simple
+    WorkingDirectory=/home/ec2-user/notification-system-1m/workers/consumer
+    Environment=HOME=/root
+    Environment=GOPATH=/root/go
+    Environment=GOMODCACHE=/root/go/pkg/mod
+    Environment=AWS_REGION=${var.region}
+    Environment=SQS_QUEUE_URL=${data.aws_sqs_queue.notification_queue.url}
+    ExecStart=/usr/bin/go run worker.go
+    Restart=always
+    RestartSec=5
+    User=root
+
+    [Install]
+    WantedBy=multi-user.target
+    UNIT
+
+    echo "start the worker"
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now worker
     EOF
     tags = {
         Name = "Worker"
