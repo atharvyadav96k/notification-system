@@ -56,7 +56,12 @@ func main() {
 		for _, msg := range out.Messages {
 			var notification Message
 			if err := json.Unmarshal([]byte(aws.ToString(msg.Body)), &notification); err != nil {
-				log.Printf("failed to parse message: %v", err)
+				log.Printf("failed to parse message, leaving in queue: %v", err)
+				continue
+			}
+
+			if notification.Message == "" || notification.ReceiverAddress == "" {
+				log.Printf("message missing required fields, leaving in queue: %s", aws.ToString(msg.Body))
 				continue
 			}
 
@@ -64,7 +69,7 @@ func main() {
 				time.Now().Format(time.RFC3339), notification.ReceiverAddress, notification.Message)
 
 			if _, err := logFile.WriteString(entry); err != nil {
-				log.Printf("failed to write log entry: %v", err)
+				log.Printf("failed to write log entry, leaving in queue: %v", err)
 				continue
 			}
 
