@@ -36,11 +36,11 @@ resource "aws_instance" "worker"{
     user_data = <<-EOF
     #!/bin/bash
     echo "install go"
-    sudo dnf install golang-1.25.5
+    sudo dnf install -y golang-1.25.5
     go version
-    
+
     echo "instal git"
-    sudo dnf install git
+    sudo dnf install -y git
 
     echo "Pull the code"
     git clone https://github.com/atharvyadav96k/notification-system-1m.git
@@ -49,7 +49,7 @@ resource "aws_instance" "worker"{
     echo "Install Dependencies"
     go mod tidy
     echo "run the code"
-    go run worker.go
+    nohup go run worker.go > /var/log/worker.log 2>&1 &
     EOF
     tags = {
         Name = "Worker"
