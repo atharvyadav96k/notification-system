@@ -14,6 +14,10 @@ variable "SQS_NAME" {
   type = string
 }
 
+variable "docker_image" {
+  type = string
+}
+
 data "aws_sqs_queue" "notification_queue" {
   name = var.SQS_NAME
 }
@@ -83,43 +87,42 @@ resource "aws_instance" "worker"{
     iam_instance_profile       = aws_iam_instance_profile.worker.name
     user_data_replace_on_change = true
 
+    metadata_options {
+        http_endpoint               = "enabled"
+        http_tokens                 = "required"
+        http_put_response_hop_limit = 2
+    }
+
     user_data = <<-EOF
     #!/bin/bash
-    export HOME=/root
-    export GOPATH=/root/go
-    export GOMODCACHE=/root/go/pkg/mod
+    echo "install docker"
+    sudo dnf install -y docker
+    sudo systemctl enable --now docker
 
-    echo "install git"
-    sudo dnf install -y git
+    mkdir -p /home/ec2-user
 
-    echo "install go"
-    sudo dnf install -y golang
-
-    echo "pull the code"
-    git clone https://github.com/atharvyadav96k/notification-system-1m.git /home/ec2-user/notification-system-1m
-
-    cd /home/ec2-user/notification-system-1m/workers/consumer
-    echo "install dependencies"
-    go mod tidy
+    echo "install worker run script"
+    cat <<-'SCRIPT' | sudo tee /usr/local/bin/run-worker.sh
+    ${file("${path.module}/run-worker.sh")}
+    SCRIPT
+    sudo chmod +x /usr/local/bin/run-worker.sh
 
     echo "create worker service"
     cat <<-'UNIT' | sudo tee /etc/systemd/system/worker.service
     [Unit]
     Description=Notification SQS worker
-    After=network.target
+    After=network.target docker.service
+    Requires=docker.service
 
     [Service]
     Type=simple
-    WorkingDirectory=/home/ec2-user/notification-system-1m/workers/consumer
-    Environment=HOME=/root
-    Environment=GOPATH=/root/go
-    Environment=GOMODCACHE=/root/go/pkg/mod
+    Environment=DOCKER_IMAGE=${var.docker_image}
     Environment=AWS_REGION=${var.region}
     Environment=SQS_QUEUE_URL=${data.aws_sqs_queue.notification_queue.url}
-    ExecStart=/usr/bin/go run worker.go
+    ExecStart=/usr/local/bin/run-worker.sh
+    ExecStop=/usr/bin/docker stop worker
     Restart=always
     RestartSec=5
-    User=root
 
     [Install]
     WantedBy=multi-user.target
