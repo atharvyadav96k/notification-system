@@ -63,7 +63,9 @@ func main() {
 		} else if time.Since(lastActivity) >= idleShutdownTimeout {
 			log.Println("no messages received recently, shutting down instance")
 			if err := exec.Command("sudo", "shutdown", "-h", "now").Run(); err != nil {
-				log.Printf("failed to shut down instance: %v", err)
+				entry := fmt.Sprintf("[%s] failed to shut down instance: %v\n", time.Now().Format(time.RFC3339), err)
+				log.Print(entry)
+				logFile.WriteString(entry)
 			}
 			return
 		}
