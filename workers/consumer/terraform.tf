@@ -35,21 +35,7 @@ resource "aws_instance" "worker"{
     vpc_security_group_ids = [aws_security_group.worker-security.id]
     user_data = <<-EOF
     #!/bin/bash
-    echo "install go"
-    sudo dnf install -y golang-1.25.5
-    go version
-
-    echo "instal git"
-    sudo dnf install -y git
-
-    echo "Pull the code"
-    git clone https://github.com/atharvyadav96k/notification-system-1m.git
-
-    cd ./notification-system-1m/worker/consumer
-    echo "Install Dependencies"
-    go mod tidy
-    echo "run the code"
-    nohup go run worker.go > /var/log/worker.log 2>&1 &
+    echo "user_data ran at $(date)" > /home/ec2-user/userdata_ran.txt
     EOF
     tags = {
         Name = "Worker"
