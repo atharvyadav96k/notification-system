@@ -84,6 +84,10 @@ resource "aws_instance" "worker"{
 
     user_data = <<-EOF
     #!/bin/bash
+    export HOME=/root
+    export GOPATH=/root/go
+    export GOMODCACHE=/root/go/pkg/mod
+
     echo "install git"
     sudo dnf install -y git
 
