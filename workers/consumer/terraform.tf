@@ -36,6 +36,10 @@ resource "aws_instance" "worker"{
     user_data = <<-EOF
     #!/bin/bash
     echo "user_data ran at $(date)" > /home/ec2-user/userdata_ran.txt
+
+    echo "install git"
+    sudo dnf install -y git
+    git --version >> /home/ec2-user/userdata_ran.txt
     EOF
     tags = {
         Name = "Worker"
