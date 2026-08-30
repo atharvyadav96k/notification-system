@@ -93,6 +93,7 @@ resource "aws_instance" "worker"{
         http_put_response_hop_limit = 2
     }
 
+
     user_data = <<-EOF
     #!/bin/bash
     echo "install docker"
