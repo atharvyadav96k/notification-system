@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
+
+const idleShutdownTimeout = 2 * time.Minute
 
 type Message struct {
 	Message         string
@@ -41,6 +44,8 @@ func main() {
 
 	log.Println("worker started, polling SQS...")
 
+	lastActivity := time.Now()
+
 	for {
 		out, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 			QueueUrl:            aws.String(queueURL),
@@ -51,6 +56,16 @@ func main() {
 			log.Printf("receive message error: %v", err)
 			time.Sleep(5 * time.Second)
 			continue
+		}
+
+		if len(out.Messages) > 0 {
+			lastActivity = time.Now()
+		} else if time.Since(lastActivity) >= idleShutdownTimeout {
+			log.Println("no messages received recently, shutting down instance")
+			if err := exec.Command("sudo", "shutdown", "-h", "now").Run(); err != nil {
+				log.Printf("failed to shut down instance: %v", err)
+			}
+			return
 		}
 
 		for _, msg := range out.Messages {
