@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-medium
+  namespace: notifications
+  labels:
+    priority: medium
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: worker-medium
+  template:
+    metadata:
+      labels:
+        app: worker-medium
+        priority: medium
+    spec:
+      nodeSelector:
+        priority: medium
+      containers:
+        - name: worker
+          image: __DOCKER_IMAGE__
+          env:
+            - name: SQS_QUEUE_URL
+              value: "__QUEUE_URL_MEDIUM__"
+            - name: AWS_REGION
+              value: "__AWS_REGION__"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-low
+  namespace: notifications
+  labels:
+    priority: low
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: worker-low
+  template:
+    metadata:
+      labels:
+        app: worker-low
+        priority: low
+    spec:
+      nodeSelector:
+        priority: low
+      containers:
+        - name: worker
+          image: __DOCKER_IMAGE__
+          env:
+            - name: SQS_QUEUE_URL
+              value: "__QUEUE_URL_LOW__"
+            - name: AWS_REGION
+              value: "__AWS_REGION__"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

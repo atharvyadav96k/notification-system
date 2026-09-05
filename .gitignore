@@ -4,3 +4,13 @@ functions/end-point/*.tfstate.*
 functions/end-point/terraform.tfvars
 functions/end-point/bootstrap
 functions/end-point/function.zip
+
+sqs/*/.terraform/
+sqs/*/*.tfstate
+sqs/*/*.tfstate.*
+sqs/*/terraform.tfvars
+
+k8s-cluster/.terraform/
+k8s-cluster/*.tfstate
+k8s-cluster/*.tfstate.*
+k8s-cluster/terraform.tfvars

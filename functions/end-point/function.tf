@@ -25,8 +25,16 @@ variable "SQS_NAME" {
 provider "aws" {
   region = var.region
 }
-data "aws_sqs_queue" "notification_queue" {
-  name = var.SQS_NAME
+data "aws_sqs_queue" "notification_queue_high" {
+  name = "${var.SQS_NAME}-high"
+}
+
+data "aws_sqs_queue" "notification_queue_medium" {
+  name = "${var.SQS_NAME}-medium"
+}
+
+data "aws_sqs_queue" "notification_queue_low" {
+  name = "${var.SQS_NAME}-low"
 }
 
 locals {
@@ -47,7 +55,11 @@ resource "aws_iam_policy" "lambda_sqs_send_policy" {
           "sqs:GetQueueAttributes",
           "sqs:GetQueueUrl"
         ]
-        Resource = data.aws_sqs_queue.notification_queue.arn
+        Resource = [
+          data.aws_sqs_queue.notification_queue_high.arn,
+          data.aws_sqs_queue.notification_queue_medium.arn,
+          data.aws_sqs_queue.notification_queue_low.arn,
+        ]
       }
     ]
   })
@@ -96,7 +108,9 @@ resource "aws_lambda_function" "notification_publisher" {
   source_code_hash = filebase64sha256("${path.module}/function.zip")
   environment {
     variables = {
-      SQS_QUEUE_URL = data.aws_sqs_queue.notification_queue.url
+      SQS_QUEUE_URL_HIGH   = data.aws_sqs_queue.notification_queue_high.url
+      SQS_QUEUE_URL_MEDIUM = data.aws_sqs_queue.notification_queue_medium.url
+      SQS_QUEUE_URL_LOW    = data.aws_sqs_queue.notification_queue_low.url
     }
   }
   depends_on = [

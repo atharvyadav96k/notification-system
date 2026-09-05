@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/atharvyadav96k/notification-system/function/end-point/applayer"
@@ -12,7 +13,7 @@ import (
 )
 
 var sqsClient *sqs.Client
-var queueURL string
+var queueURLs map[applayer.Priority]string
 
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.Background())
@@ -20,7 +21,11 @@ func init() {
 		panic(err)
 	}
 	sqsClient = sqs.NewFromConfig(cfg)
-	queueURL = os.Getenv("SQS_QUEUE_URL")
+	queueURLs = map[applayer.Priority]string{
+		applayer.PriorityHigh:   os.Getenv("SQS_QUEUE_URL_HIGH"),
+		applayer.PriorityMedium: os.Getenv("SQS_QUEUE_URL_MEDIUM"),
+		applayer.PriorityLow:    os.Getenv("SQS_QUEUE_URL_LOW"),
+	}
 }
 
 func SendNotification(ctx context.Context, event json.RawMessage) error {
@@ -32,6 +37,11 @@ func SendNotification(ctx context.Context, event json.RawMessage) error {
 }
 
 func putMessageInTheQueue(ctx context.Context, notification applayer.Message) error {
+	queueURL, ok := queueURLs[notification.MessageType.Priority()]
+	if !ok || queueURL == "" {
+		return fmt.Errorf("no queue configured for priority %q", notification.MessageType.Priority())
+	}
+
 	body, err := json.Marshal(notification)
 	if err != nil {
 		return err

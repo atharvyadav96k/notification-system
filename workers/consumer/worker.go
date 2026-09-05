@@ -3,18 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log"
 	"os"
-	"os/exec"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
-
-const idleShutdownTimeout = 2 * time.Minute
 
 type Message struct {
 	Message         string
@@ -23,7 +22,8 @@ type Message struct {
 }
 
 func main() {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 
 	queueURL := os.Getenv("SQS_QUEUE_URL")
 	if queueURL == "" {
@@ -36,15 +36,7 @@ func main() {
 	}
 	client := sqs.NewFromConfig(cfg)
 
-	logFile, err := os.OpenFile("/home/ec2-user/notifications_received.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatalf("failed to open log file: %v", err)
-	}
-	defer logFile.Close()
-
 	log.Println("worker started, polling SQS...")
-
-	lastActivity := time.Now()
 
 	for {
 		out, err := client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
@@ -53,21 +45,13 @@ func main() {
 			WaitTimeSeconds:     10,
 		})
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				log.Println("shutting down, stopped polling SQS")
+				return
+			}
 			log.Printf("receive message error: %v", err)
 			time.Sleep(5 * time.Second)
 			continue
-		}
-
-		if len(out.Messages) > 0 {
-			lastActivity = time.Now()
-		} else if time.Since(lastActivity) >= idleShutdownTimeout {
-			log.Println("no messages received recently, shutting down instance")
-			if err := exec.Command("sudo", "shutdown", "-h", "now").Run(); err != nil {
-				entry := fmt.Sprintf("[%s] failed to shut down instance: %v\n", time.Now().Format(time.RFC3339), err)
-				log.Print(entry)
-				logFile.WriteString(entry)
-			}
-			return
 		}
 
 		for _, msg := range out.Messages {
@@ -82,13 +66,7 @@ func main() {
 				continue
 			}
 
-			entry := fmt.Sprintf("[%s] received notification for %s: %s\n",
-				time.Now().Format(time.RFC3339), notification.ReceiverAddress, notification.Message)
-
-			if _, err := logFile.WriteString(entry); err != nil {
-				log.Printf("failed to write log entry, leaving in queue: %v", err)
-				continue
-			}
+			log.Printf("received notification for %s: %s", notification.ReceiverAddress, notification.Message)
 
 			_, err = client.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 				QueueUrl:      aws.String(queueURL),

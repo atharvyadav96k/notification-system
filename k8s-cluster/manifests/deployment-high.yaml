@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-high
+  namespace: notifications
+  labels:
+    priority: high
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: worker-high
+  template:
+    metadata:
+      labels:
+        app: worker-high
+        priority: high
+    spec:
+      nodeSelector:
+        priority: high
+      containers:
+        - name: worker
+          image: __DOCKER_IMAGE__
+          env:
+            - name: SQS_QUEUE_URL
+              value: "__QUEUE_URL_HIGH__"
+            - name: AWS_REGION
+              value: "__AWS_REGION__"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

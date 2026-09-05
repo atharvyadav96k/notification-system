@@ -15,12 +15,12 @@ provider "aws" {
 }
 
 resource "aws_sqs_queue" "notification_dlq" {
-  name                      = "${var.SQS_NAME}-dlq"
+  name                      = "${var.SQS_NAME}-medium-dlq"
   message_retention_seconds = 1209600
 }
 
 resource "aws_sqs_queue" "notification_queue" {
-  name                       = var.SQS_NAME
+  name                       = "${var.SQS_NAME}-medium"
   delay_seconds              = 0
   max_message_size           = 262144
   message_retention_seconds  = 345600
