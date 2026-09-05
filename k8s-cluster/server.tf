@@ -114,6 +114,11 @@ resource "aws_iam_role_policy_attachment" "k3s_server" {
   policy_arn = aws_iam_policy.k3s_server.arn
 }
 
+resource "aws_iam_role_policy_attachment" "k3s_server_ssm_core" {
+  role       = aws_iam_role.k3s_server.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "k3s_server" {
   name = "${var.cluster_name}-k3s-server-profile"
   role = aws_iam_role.k3s_server.name
